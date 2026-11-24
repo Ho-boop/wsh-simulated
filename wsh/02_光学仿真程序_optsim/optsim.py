@@ -29,7 +29,30 @@ from matplotlib import font_manager
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_CONFIG = os.path.join(ROOT, "configs", "example_SPT_ETL.yaml")   # 不带参数运行时使用
+# ---- 程序目录结构（改文件夹名时只需改这里） ----
+DIR_CONFIGS = os.path.join(ROOT, "1_配置文件_configs")
+DIR_MATERIALS = os.path.join(ROOT, "2_材料库_materials")
+DIR_SPECTRA = os.path.join(ROOT, "3_光谱_spectra")
+DIR_RESULTS = os.path.join(ROOT, "5_输出结果_results")
+DEFAULT_CONFIG = os.path.join(DIR_CONFIGS, "example_SPT_ETL.yaml")   # 不带参数运行时使用
+
+# ---- 输出结果自动分类的子文件夹 ----
+SUB = {
+    "config": "00_配置备份",
+    "field":  "01_电场分布图_E2",
+    "abs":    "02_吸收与反射谱",
+    "gen":    "03_产生率与损失分析",
+    "sweep":  "04_厚度扫描",
+    "data":   "05_数据表格_csv",
+    "nk":     "06_材料nk",
+}
+
+
+def od(out, key):
+    """返回输出目录下对应类别的子文件夹（自动创建）"""
+    p = os.path.join(out, SUB[key])
+    os.makedirs(p, exist_ok=True)
+    return p
 
 Q_E = 1.602176634e-19
 H_P = 6.62607015e-34
@@ -42,7 +65,7 @@ DEFAULTS = {
     "wavelength": {"start": 300, "stop": 1000, "step": 1},
     "substrate": {"material": "glass", "incoherent": True},   # material: null → 光从空气直接入射到膜层
     "exit_medium": {"n": 1.0, "k": 0.0},
-    "spectrum": "spectra/AM1.5G_ASTM_G173.csv",
+    "spectrum": "AM1.5G_ASTM_G173.csv",           # 在 3_光谱_spectra/ 中查找
     "iqe": 1.0,
     "dz": 0.25,
     "materials": {},
@@ -73,6 +96,8 @@ DEFAULTS = {
 def deep_update(base, new):
     out = dict(base)
     for k, v in (new or {}).items():
+        if v is None and isinstance(out.get(k), dict):     # YAML 中只写了 "key:" 而没有内容 → 用默认值
+            continue
         if isinstance(v, dict) and isinstance(out.get(k), dict):
             out[k] = deep_update(out[k], v)
         else:
@@ -113,11 +138,11 @@ class Ctx:
     def path(self, p):
         if os.path.isabs(p):
             return p
-        for base in (self.cfg_dir, ROOT, os.getcwd()):
+        for base in (self.cfg_dir, ROOT, DIR_MATERIALS, DIR_SPECTRA, os.getcwd()):
             q = os.path.join(base, p)
             if os.path.exists(q):
                 return q
-        raise FileNotFoundError(f"找不到文件：{p}（已在配置文件目录、{ROOT} 和当前目录中查找）")
+        raise FileNotFoundError(f"找不到文件：{p}（已在配置文件目录、程序目录、材料库、光谱目录和当前目录中查找）")
 
     def nk(self, name):
         """返回材料在仿真波长上的复折射率 n + ik"""
@@ -128,12 +153,12 @@ class Ctx:
         spec = self.cfg["materials"].get(name)
         if spec is None:                                # 未定义 → 自动在 materials/ 下找同名 csv
             for ext in (".csv", ".txt", ".dat", ".nk"):
-                p = os.path.join(ROOT, "materials", name + ext)
+                p = os.path.join(DIR_MATERIALS, name + ext)
                 if os.path.exists(p):
                     spec = p
                     break
         if spec is None:
-            raise KeyError(f"材料 '{name}' 未定义：请在配置 materials: 中给出，或在 materials/ 下放 {name}.csv")
+            raise KeyError(f"材料 '{name}' 未定义：请在配置 materials: 中给出，或在 2_材料库_materials/ 下放 {name}.csv")
         self._mat[name] = self._spec_nk(spec, name)
         return self._mat[name]
 
@@ -334,9 +359,9 @@ def bounds(layers):
 
 
 # ------------------------------------------------------------------ 出图
-def savefig(fig, out, name, cfg):
+def savefig(fig, out, name, cfg, key):
     for fmt in cfg["plot"]["formats"]:
-        fig.savefig(os.path.join(out, f"{name}.{fmt}"), dpi=cfg["plot"]["dpi"], bbox_inches="tight")
+        fig.savefig(os.path.join(od(out, key), f"{name}.{fmt}"), dpi=cfg["plot"]["dpi"], bbox_inches="tight")
     plt.close(fig)
 
 
@@ -389,7 +414,7 @@ def plot_maps(ctx, groups, results, out, field_key, iw=None, title="", fname="ma
     cb = fig.colorbar(pcm, ax=axes, fraction=0.025, pad=0.02)
     cb.set_label(r"$|E|^2/|E_0|^2$", fontsize=fs - 1)
     fig.suptitle(title, fontsize=fs, y=0.88 + 0.65 / fig.get_figheight())
-    savefig(fig, out, fname, cfg)
+    savefig(fig, out, fname, cfg, "field")
 
 
 def make_plots(ctx, groups, results, out):
@@ -429,7 +454,7 @@ def make_plots(ctx, groups, results, out):
             ax.set_ylabel(r"$|E|^2/|E_0|^2$")
             ax.legend(frameon=False, fontsize=9)
         fig.tight_layout()
-        savefig(fig, out, "E2_profile_z", cfg)
+        savefig(fig, out, "E2_profile_z", cfg, "field")
 
     # 3. 活性层吸收 & 反射
     fig, ax = plt.subplots(1, 2, figsize=(11, 4))
@@ -444,7 +469,7 @@ def make_plots(ctx, groups, results, out):
         a.set_xlim(wl.min(), wl.max())
         a.legend(frameon=False, fontsize=9)
     fig.tight_layout()
-    savefig(fig, out, "absorption_reflection", cfg)
+    savefig(fig, out, "absorption_reflection", cfg, "abs")
 
     if len(results) > 1:
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -455,7 +480,7 @@ def make_plots(ctx, groups, results, out):
         ax.set_ylabel("ΔAbsorptance (active layer)")
         ax.legend(frameon=False)
         fig.tight_layout()
-        savefig(fig, out, "delta_absorption", cfg)
+        savefig(fig, out, "delta_absorption", cfg, "abs")
 
     # 4. 产生率
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -467,7 +492,7 @@ def make_plots(ctx, groups, results, out):
     ax.set_ylabel(r"Generation rate G (cm$^{-3}$ s$^{-1}$)")
     ax.legend(frameon=False)
     fig.tight_layout()
-    savefig(fig, out, "generation_rate", cfg)
+    savefig(fig, out, "generation_rate", cfg, "gen")
 
     # 5. 光子损失分解（堆叠柱状图）
     cats = ["Active (Jsc)"]
@@ -497,7 +522,7 @@ def make_plots(ctx, groups, results, out):
     ax.set_ylim(0, bot.max() * 1.05)
     ax.legend(frameon=False, fontsize=8, bbox_to_anchor=(1.02, 1), loc="upper left")
     fig.tight_layout()
-    savefig(fig, out, "loss_breakdown", cfg)
+    savefig(fig, out, "loss_breakdown", cfg, "gen")
 
     # 6. 材料 n,k
     mats = []
@@ -521,7 +546,7 @@ def make_plots(ctx, groups, results, out):
         a.set_xlabel("Wavelength (nm)")
         a.legend(frameon=False, fontsize=9)
     fig.tight_layout()
-    savefig(fig, out, "nk_materials", cfg)
+    savefig(fig, out, "nk_materials", cfg, "nk")
     return cats, vals
 
 
@@ -550,21 +575,21 @@ def export(ctx, groups, results, out, cats, vals):
                             for L in r["layers"])
         rows.append([g["name"], struct, r["Jsc"], r["A_act"][mb].mean(), np.average(r["E2w"][s], weights=r["wz"][s]),
                      *v, r["cons_err"]])
-    write_csv(os.path.join(out, "summary.csv"), hdr, rows)
+    write_csv(os.path.join(od(out, "data"), "summary.csv"), hdr, rows)
 
-    write_csv(os.path.join(out, "absorption_all_groups.csv"),
+    write_csv(os.path.join(od(out, "data"), "absorption_all_groups.csv"),
               ["wavelength_nm"] + [f"A_active[{g['name']}]" for g in groups] + [f"R[{g['name']}]" for g in groups],
               np.c_[wl, *[r["A_act"] for r in results], *[r["R"] for r in results]].tolist())
 
     for g, r in zip(groups, results):
         tag = safe_name(g["name"])
-        write_csv(os.path.join(out, f"spectra_{tag}.csv"),
+        write_csv(os.path.join(od(out, "data"), f"spectra_{tag}.csv"),
                   ["wavelength_nm"] + [f"A[{L['name']}]" for L in r["layers"]] + ["A_active_total", "R", "T"],
                   np.c_[wl, *r["A"], r["A_act"], r["R"], r["T"]].tolist())
         lname = [r["layers"][j]["name"] for j in r["li"]]
         rows = [[r["z"][i], lname[i], *[r["E2"][iw][i] for iw in iws], r["E2w"][i], r["G"][i] * 1e-6]
                 for i in range(r["z"].size)]
-        write_csv(os.path.join(out, f"field_{tag}.csv"),
+        write_csv(os.path.join(od(out, "data"), f"field_{tag}.csv"),
                   ["z_nm", "layer"] + [f"E2_{wl[iw]:g}nm" for iw in iws] + ["E2_AM1.5G_weighted", "G_cm-3s-1"], rows)
     print("\n汇总结果 (summary.csv)：")
     print(f"  {'组别':<16}{'Jsc,max (mA/cm²)':>18}{'能量守恒误差':>14}")
@@ -594,7 +619,7 @@ def run_sweep(ctx, groups, out):
             g2["set"][target] = dict(old, thickness=v) if isinstance(old, dict) else v
             table[i, k] = simulate(ctx, build_stack(ctx.cfg, g2), keep_field=False)["Jsc"]
     tag = safe_name(target)
-    write_csv(os.path.join(out, f"sweep_{tag}.csv"), [f"{target}_thickness_nm"] + [f"Jsc[{g['name']}]" for g in groups],
+    write_csv(os.path.join(od(out, "sweep"), f"sweep_{tag}.csv"), [f"{target}_thickness_nm"] + [f"Jsc[{g['name']}]" for g in groups],
               np.c_[vals, table].tolist())
     fig, ax = plt.subplots(figsize=(6, 4))
     for k, g in enumerate(groups):
@@ -605,7 +630,7 @@ def run_sweep(ctx, groups, out):
     ax.set_ylabel("Jsc,max (mA/cm²)")
     ax.legend(frameon=False)
     fig.tight_layout()
-    savefig(fig, out, f"sweep_{tag}", ctx.cfg)
+    savefig(fig, out, f"sweep_{tag}", ctx.cfg, "sweep")
 
 
 def run_sweep2d(ctx, groups, out):
@@ -628,7 +653,7 @@ def run_sweep2d(ctx, groups, out):
             g2["set"] = st
             J[i, k] = simulate(ctx, build_stack(ctx.cfg, g2), keep_field=False)["Jsc"]
     tag = f"{safe_name(lx)}_vs_{safe_name(ly)}"
-    write_csv(os.path.join(out, f"sweep2d_{tag}.csv"), [f"{ly}\\{lx}"] + [f"{x:g}" for x in xv],
+    write_csv(os.path.join(od(out, "sweep"), f"sweep2d_{tag}.csv"), [f"{ly}\\{lx}"] + [f"{x:g}" for x in xv],
               [[y, *J[i]] for i, y in enumerate(yv)])
     fig, ax = plt.subplots(figsize=(6.2, 4.8))
     cs = ax.contourf(xv, yv, J, levels=20, cmap="viridis")
@@ -640,7 +665,7 @@ def run_sweep2d(ctx, groups, out):
     ax.set_ylabel(f"{ly} thickness (nm)")
     fig.colorbar(cs, label="Jsc,max (mA/cm²)")
     fig.tight_layout()
-    savefig(fig, out, f"sweep2d_{tag}", ctx.cfg)
+    savefig(fig, out, f"sweep2d_{tag}", ctx.cfg, "sweep")
 
 
 # ------------------------------------------------------------------ 主程序
@@ -664,11 +689,11 @@ def main(argv=None):
     for i, g in enumerate(groups):
         g.setdefault("name", f"group{i + 1}")
 
-    out = a.output or cfg["output"] or os.path.join("results", os.path.splitext(os.path.basename(a.config))[0])
+    out = a.output or cfg["output"] or os.path.splitext(os.path.basename(a.config))[0]
     if not os.path.isabs(out):
-        out = os.path.join(ROOT, out)
+        out = os.path.normpath(os.path.join(DIR_RESULTS, out))
     os.makedirs(out, exist_ok=True)
-    shutil.copy(a.config, os.path.join(out, "used_config.yaml"))
+    shutil.copy(a.config, os.path.join(od(out, "config"), "used_config.yaml"))
 
     setup_font()
     plt.rcParams["font.size"] = 11

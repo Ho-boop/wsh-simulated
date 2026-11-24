@@ -1,6 +1,6 @@
 # 例子：ITO / SPT / PM6:Y6 / ETL / Al，ETL = 无、SPT 5 nm、SPT 8 nm
-# 运行：python optsim.py configs/example_SPT_ETL.yaml
-output: results/example_SPT_ETL
+# 运行：python optsim.py 1_配置文件_configs/example_SPT_ETL.yaml
+output: ../../01_SPT-ETL光学仿真结果   # 相对 5_输出结果_results/，即写到 wsh/01_SPT-ETL光学仿真结果
 
 wavelength: {start: 300, stop: 1000, step: 1}
 substrate: {material: glass, incoherent: true}

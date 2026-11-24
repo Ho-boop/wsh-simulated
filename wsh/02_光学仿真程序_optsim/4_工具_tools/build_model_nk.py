@@ -67,11 +67,11 @@ n_pm, k_pm = nk_from_eps(eps)
 eps_spt = 2.55 + gauss_eps(E, 1.6, 4.9, 0.7) + gauss_eps(E, 0.35, 4.0, 0.35)
 n_spt, k_spt = nk_from_eps(eps_spt)
 
-os.makedirs(os.path.join(HERE, "..", "materials"), exist_ok=True)
-np.savetxt(os.path.join(HERE, "..", "materials", "PM6Y6.csv"), np.c_[wl, n_pm, k_pm], delimiter=",", fmt="%.5g",
+os.makedirs(os.path.join(HERE, "..", "2_材料库_materials"), exist_ok=True)
+np.savetxt(os.path.join(HERE, "..", "2_材料库_materials", "PM6Y6.csv"), np.c_[wl, n_pm, k_pm], delimiter=",", fmt="%.5g",
            header="wavelength_nm,n,k  | PM6:Y6 Gaussian-oscillator model (KK-consistent), fitted to typical literature k; "
                   "replace with measured ellipsometry data if available", comments="# ")
-np.savetxt(os.path.join(HERE, "..", "materials", "SPT.csv"), np.c_[wl, n_spt, k_spt], delimiter=",", fmt="%.5g",
+np.savetxt(os.path.join(HERE, "..", "2_材料库_materials", "SPT.csv"), np.c_[wl, n_spt, k_spt], delimiter=",", fmt="%.5g",
            header="wavelength_nm,n,k  | SPT (sodium phosphotungstate, NaPW12) Gaussian-oscillator model: transparent in VIS/NIR, "
                   "UV absorption only; replace with measured data if available", comments="# ")
 

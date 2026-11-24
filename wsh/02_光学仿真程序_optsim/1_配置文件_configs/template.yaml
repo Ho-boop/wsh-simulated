@@ -1,12 +1,12 @@
 # =====================================================================
 #  optsim 配置模板 —— 复制本文件，改成自己的器件后运行：
-#      python optsim.py configs/我的器件.yaml
+#      python optsim.py 1_配置文件_configs/我的器件.yaml
 #  没写的项目都用默认值，所以最少只需写 stack（和 groups）。
 #  长度单位一律为 nm。
 # =====================================================================
 
 # 输出目录（相对 optsim 文件夹）。不写则为 results/<配置文件名>
-output: results/my_device
+output: my_device          # 相对 5_输出结果_results/；不写则用配置文件名
 
 # ---------------- 光谱与入射条件 ----------------
 wavelength: {start: 300, stop: 1000, step: 1}   # 计算波长范围 (nm)
@@ -16,12 +16,12 @@ substrate:                 # 光从衬底一侧入射（正入射）
   incoherent: true         # 厚衬底按非相干处理（计入空气/玻璃前表面反射）
 exit_medium: {n: 1.0, k: 0}  # 最后一层之后的介质（通常是空气）
 
-spectrum: spectra/AM1.5G_ASTM_G173.csv   # 太阳光谱（波长 nm, W m^-2 nm^-1）
+spectrum: AM1.5G_ASTM_G173.csv   # 太阳光谱（在 3_光谱_spectra/ 中查找；波长 nm, W m^-2 nm^-1）
 iqe: 1.0                   # 内量子效率（Jsc = IQE × 吸收光子电流）
 dz: 0.25                   # 纵向采样步长 (nm)，一般不用改
 
 # ---------------- 材料 ----------------
-# 默认会自动读取 materials/<材料名>.csv（三列：波长, n, k；逗号/空格/Tab 分隔都行；
+# 默认会自动读取 2_材料库_materials/<材料名>.csv（三列：波长, n, k；逗号/空格/Tab 分隔都行；
 # 波长单位 nm 或 µm 会自动识别；有表头也没关系）。
 # 只有以下情况需要在这里写：
 materials:
@@ -34,7 +34,7 @@ materials:
 
 # ---------------- 器件结构（从衬底一侧向上，依次列出） ----------------
 #   name      : 层名（唯一，下面 groups 用它来改这一层；也用作输出数据的列名）
-#   material  : 材料名（对应 materials/ 下的 csv 或上面 materials: 里的定义）
+#   material  : 材料名（对应 2_材料库_materials/ 下的 csv 或上面 materials: 里的定义）
 #   thickness : 厚度 nm（0 = 该层不存在）
 #   active    : true 表示活性层（计算 Jsc；可有多层，Jsc 为总和）
 #   label     : 截面图上显示的文字（可选；{d} 会被替换成厚度）；不写则自动为 "材料 (厚度 nm)"
