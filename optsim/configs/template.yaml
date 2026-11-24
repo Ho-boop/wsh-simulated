@@ -1,0 +1,91 @@
+# =====================================================================
+#  optsim 配置模板 —— 复制本文件，改成自己的器件后运行：
+#      python optsim.py configs/我的器件.yaml
+#  没写的项目都用默认值，所以最少只需写 stack（和 groups）。
+#  长度单位一律为 nm。
+# =====================================================================
+
+# 输出目录（相对 optsim 文件夹）。不写则为 results/<配置文件名>
+output: results/my_device
+
+# ---------------- 光谱与入射条件 ----------------
+wavelength: {start: 300, stop: 1000, step: 1}   # 计算波长范围 (nm)
+
+substrate:                 # 光从衬底一侧入射（正入射）
+  material: glass          # 衬底材料；写 null 表示光直接从空气入射到第一层膜
+  incoherent: true         # 厚衬底按非相干处理（计入空气/玻璃前表面反射）
+exit_medium: {n: 1.0, k: 0}  # 最后一层之后的介质（通常是空气）
+
+spectrum: spectra/AM1.5G_ASTM_G173.csv   # 太阳光谱（波长 nm, W m^-2 nm^-1）
+iqe: 1.0                   # 内量子效率（Jsc = IQE × 吸收光子电流）
+dz: 0.25                   # 纵向采样步长 (nm)，一般不用改
+
+# ---------------- 材料 ----------------
+# 默认会自动读取 materials/<材料名>.csv（三列：波长, n, k；逗号/空格/Tab 分隔都行；
+# 波长单位 nm 或 µm 会自动识别；有表头也没关系）。
+# 只有以下情况需要在这里写：
+materials:
+  # 指定其他路径的数据文件（相对配置文件目录或 optsim 目录）：
+  # MyPolymer: my_nk/MyPolymer_ellipsometry.txt
+  # 常数折射率（透明/薄层的快速近似）：
+  # PDINN: {n: 1.70, k: 0}
+  # Cauchy 色散 n = A + B/λ² + C/λ⁴（λ 单位 µm），可再加常数 k：
+  # ZnO: {cauchy: [1.90, 0.02, 0.001], k: 0}
+
+# ---------------- 器件结构（从衬底一侧向上，依次列出） ----------------
+#   name      : 层名（唯一，下面 groups 用它来改这一层；也用作输出数据的列名）
+#   material  : 材料名（对应 materials/ 下的 csv 或上面 materials: 里的定义）
+#   thickness : 厚度 nm（0 = 该层不存在）
+#   active    : true 表示活性层（计算 Jsc；可有多层，Jsc 为总和）
+#   label     : 截面图上显示的文字（可选；{d} 会被替换成厚度）；不写则自动为 "材料 (厚度 nm)"
+#   show_label: false 不在截面图上显示该层名称（可选）
+#   label_offset: 标签上下微调（nm，可选）
+stack:
+  - {name: ITO,    material: ITO,   thickness: 120, label: "ITO ({d}nm)"}
+  - {name: HTL,    material: SPT,   thickness: 10,  label: "SPT ({d} nm)"}
+  - {name: Active, material: PM6Y6, thickness: 100, active: true, label: "PM6:Y6 ({d} nm)"}
+  - {name: ETL,    material: SPT,   thickness: 0,   label: "SPT ({d} nm)"}
+  - {name: Al,     material: Al,    thickness: 100, label: "Al ({d}nm)"}
+
+# ---------------- 实验组 ----------------
+# 每组在上面 stack 的基础上修改若干层。set 的写法：
+#   层名: 厚度                                  只改厚度（0 = 去掉该层）
+#   层名: {material: X, thickness: 8, label: ..}  换材料/厚度/标签
+# 也可以给某组写完整的 stack: [...] 完全自定义结构。
+# 第一组作为对照组（ΔA 图以它为基准）。
+groups:
+  - {name: "w/o ETL",  set: {ETL: 0}}
+  - {name: "SPT 5 nm", set: {ETL: 5}}
+  - {name: "SPT 8 nm", set: {ETL: 8}}
+  # 换材料的例子：
+  # - {name: "PDINN 8 nm", set: {ETL: {material: PDINN, thickness: 8, label: "PDINN ({d}nm)"}}}
+
+# ---------------- 出图设置 ----------------
+plot:
+  map_wavelengths: [500, 600, 800]   # 画 |E|² 截面图的波长
+  map_weighted: true                 # 额外画一张 AM1.5G 光子通量加权的平均 |E|² 图
+  map_x_range: [-200, 200]           # 截面图横轴范围 (nm)，仅用于显示
+  map_zlim: null                     # 纵轴范围，如 [0, 300]；null = 整个器件
+  map_vmax: null                     # 色标上限；null = 各组共用的自动最大值
+  map_ncols: 3                       # 每行几个子图
+  colormap: jet
+  interface_color: red
+  label_color: white
+  label_min_thickness: 15            # 薄于此厚度的层，标签放到层外侧避免遮挡
+  annotate_max: true                 # 在活性层标出 |E|² 最大值
+  font_size: 13
+  dpi: 300
+  avg_band: [400, 900]               # summary 中“活性层平均吸收”的波段
+  formats: [png]                     # 可加 pdf / svg / tif，如 [png, pdf]
+
+# ---------------- 厚度扫描（可选，不需要就删掉或写 null） ----------------
+# 一维：对每个实验组扫描某一层厚度，得到 Jsc–厚度曲线
+sweep:
+  layer: Active
+  range: [60, 200, 10]       # [起, 止, 步长]；或用 values: [80, 100, 120]
+
+# 二维：在某一组的基础上同时扫描两层厚度，画 Jsc 等高图
+sweep2d:
+  group: "SPT 5 nm"
+  x: {layer: ETL,    range: [0, 20, 2]}
+  y: {layer: Active, range: [60, 200, 10]}

@@ -1,0 +1,30 @@
+# 例子：ITO / SPT / PM6:Y6 / ETL / Al，ETL = 无、SPT 5 nm、SPT 8 nm
+# 运行：python optsim.py configs/example_SPT_ETL.yaml
+output: results/example_SPT_ETL
+
+wavelength: {start: 300, stop: 1000, step: 1}
+substrate: {material: glass, incoherent: true}
+
+stack:
+  - {name: ITO,    material: ITO,   thickness: 120, label: "ITO ({d}nm)"}
+  - {name: HTL,    material: SPT,   thickness: 10,  label: "SPT ({d} nm)"}
+  - {name: Active, material: PM6Y6, thickness: 100, active: true, label: "PM6:Y6 ({d} nm)"}
+  - {name: ETL,    material: SPT,   thickness: 0,   label: "SPT ({d} nm)"}
+  - {name: Al,     material: Al,    thickness: 100, label: "Al ({d}nm)"}
+
+groups:
+  - {name: "w/o ETL",  set: {ETL: 0}}
+  - {name: "SPT 5 nm", set: {ETL: 5}}
+  - {name: "SPT 8 nm", set: {ETL: 8}}
+
+plot:
+  map_wavelengths: [500, 600, 800]
+
+sweep:
+  layer: Active
+  range: [60, 200, 10]
+
+sweep2d:
+  group: "SPT 5 nm"
+  x: {layer: ETL,    range: [0, 20, 1]}
+  y: {layer: Active, range: [60, 200, 10]}
